@@ -1,5 +1,8 @@
-<?php 
+<?php
+session_start();
 
-require_once 'app/init.php';
+require_once "../app/core/App.php";
+require_once "../app/core/Controller.php";
 
-$app = new App;
+// Run the app
+$app = new App();

@@ -1,53 +1,46 @@
 <?php
 
-class User {
+class User
+{
+    private $db;
 
-    public $username;
-    public $password;
-    public $auth = false;
-
-    public function __construct() {
-        // Nothing needed here unless you want to keep a DB connection
+    public function __construct()
+    {
+        // Path assumes index.php is in public/, and database.db is in project root
+        $this->db = new PDO("sqlite:" . dirname(__DIR__, 2) . "/database.db");
+        $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     }
 
-     public function test(): array {
-        $db = db_connect(); // Connect to DB
-        $statement = $db->query("SELECT * FROM users"); // run the query
-        $rows = $statement->fetchAll(PDO::FETCH_ASSOC); // get all rows
-        return $rows;
+    public function getAll()
+    {
+        $stmt = $this->db->query("SELECT * FROM users");
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    /**
-     * Authenticate user by username and password
-     *
-     * @param mixed $username
-     * @param mixed $password
-     * @return void
-     */
-    public function authenticate($username, $password): void {
-        $username = strtolower($username);
-        $db = db_connect(); // connect to DB
+    public function findUser($username)
+    {
+        $stmt = $this->db->prepare("SELECT * FROM users WHERE username = ?");
+        $stmt->execute([$username]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
 
-        $statement = $db->prepare("SELECT * FROM users WHERE username = :name;");
-        $statement->bindValue(':name', $username);
-        $statement->execute();
+    public function createUser($username, $password)
+    {
+        $hashed = password_hash($password, PASSWORD_DEFAULT);
+        $stmt = $this->db->prepare("INSERT INTO users (username, password) VALUES (?, ?)");
+        return $stmt->execute([$username, $hashed]);
+    }
 
-        $rows = $statement->fetch(PDO::FETCH_ASSOC);
+    public function logAttempt($username, $status)
+    {
+        $stmt = $this->db->prepare("INSERT INTO login_logs (username, attempt) VALUES (?, ?)");
+        $stmt->execute([$username, $status]);
+    }
 
-        if ($rows && password_verify($password, $rows['password'])) {
-            $_SESSION['auth'] = 1;
-            $_SESSION['username'] = ucwords($username);
-            unset($_SESSION['failedAuth']);
-            header('Location: /home');
-            die;
-        } else {
-            if (isset($_SESSION['failedAuth'])) {
-                $_SESSION['failedAuth']++; // increment
-            } else {
-                $_SESSION['failedAuth'] = 1;
-            }
-            header('Location: /login');
-            die;
-        }
+    public function failedAttempts($username)
+    {
+        $stmt = $this->db->prepare("SELECT * FROM login_logs WHERE username = ? AND attempt = 'failed' ORDER BY attempt_time DESC LIMIT 3");
+        $stmt->execute([$username]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }
